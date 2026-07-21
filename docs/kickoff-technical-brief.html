@@ -1,0 +1,1156 @@
+<title>DataVoice × Deepgram — Technical Kickoff</title>
+<style>
+  :root {
+    /* Console/signal palette — an audio-desk ground, deliberately green-biased
+       rather than pure black, with a considered spring-green signal accent,
+       a second cyan data hue, and a warm amber reserved for risk/challenges. */
+    --ink:      #0D1512;
+    --panel:    #131E1A;
+    --panel-2:  #182823;
+    --line:     #263630;
+    --line-2:   #32463E;
+    --fog:      #90A49B;   /* muted labels */
+    --mist:     #C6D3CC;   /* body text */
+    --paper:    #EEF3F0;   /* headings */
+    --signal:   #3ADFA1;   /* primary accent */
+    --signal-d: #1F9E70;
+    --cyan:     #67C9D6;   /* secondary data hue */
+    --amber:    #E8AC61;   /* risk / challenge semantic */
+
+    --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+    --maxw: 1080px;
+    --pad: clamp(1.25rem, 5vw, 4rem);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--mist);
+    font-family: var(--font-body);
+    font-size: clamp(1rem, 0.6vw + 0.9rem, 1.06rem);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  /* subtle console grain so the dark ground doesn't read as flat black */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(1200px 700px at 78% -8%, rgba(58,223,161,0.08), transparent 60%),
+      radial-gradient(900px 600px at 8% 108%, rgba(103,201,214,0.05), transparent 55%);
+  }
+
+  .wrap { position: relative; z-index: 1; }
+
+  section {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: clamp(3.5rem, 8vw, 6.5rem) var(--pad);
+    border-top: 1px solid var(--line);
+  }
+  section:first-of-type { border-top: 0; }
+
+  /* ---- shared type ---- */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--signal);
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin: 0 0 1.6rem;
+  }
+  .eyebrow .idx { color: var(--fog); }
+  .eyebrow::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--line-2), transparent);
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(1.7rem, 3.5vw, 2.5rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--paper);
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+  h2 + .lede { max-width: 60ch; color: var(--fog); margin: 0 0 2.6rem; }
+
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.16rem;
+    letter-spacing: -0.01em;
+    color: var(--paper);
+    margin: 0 0 0.5rem;
+  }
+
+  a { color: var(--cyan); text-decoration: none; border-bottom: 1px solid rgba(103,201,214,0.35); }
+  a:hover { border-bottom-color: var(--cyan); }
+  a:focus-visible, .card:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+  code, .mono { font-family: var(--font-mono); font-size: 0.9em; }
+  code {
+    color: var(--paper);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    padding: 0.08em 0.4em;
+    border-radius: 4px;
+  }
+  strong { color: var(--paper); font-weight: 650; }
+
+  /* =========================================================
+     HERO
+     ========================================================= */
+  .hero {
+    position: relative;
+    max-width: none;
+    padding: clamp(4rem, 11vh, 8rem) var(--pad) clamp(3rem, 7vh, 5rem);
+    overflow: hidden;
+    border-top: 0;
+  }
+  .hero-inner { max-width: var(--maxw); margin: 0 auto; position: relative; z-index: 2; }
+  #wave {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    opacity: 0.55;
+  }
+  .hero-meta {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--fog);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.4rem;
+    margin: 0 0 2.2rem;
+  }
+  .hero-meta b { color: var(--signal); font-weight: 500; }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(2.5rem, 7vw, 5rem);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    color: var(--paper);
+    text-wrap: balance;
+    margin: 0 0 1.4rem;
+    max-width: 18ch;
+  }
+  .hero h1 .accent { color: var(--signal); }
+  .hero-sub {
+    font-size: clamp(1.05rem, 1.6vw, 1.28rem);
+    color: var(--mist);
+    max-width: 54ch;
+    margin: 0 0 2.4rem;
+    line-height: 1.5;
+  }
+  .agenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+  .agenda span {
+    border: 1px solid var(--line-2);
+    background: rgba(19,30,26,0.7);
+    padding: 0.45rem 0.85rem;
+    border-radius: 100px;
+    color: var(--mist);
+    backdrop-filter: blur(3px);
+  }
+  .agenda span b { color: var(--signal); font-weight: 600; }
+
+  /* =========================================================
+     RESOURCES
+     ========================================================= */
+  .resources { display: flex; flex-direction: column; gap: 1rem; }
+  .res {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.4rem 1.6rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.6rem 1.7rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .res:hover { border-color: var(--line-2); transform: translateY(-2px); }
+  .res-rank {
+    font-family: var(--font-mono);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.7rem;
+  }
+  .res-rank .n {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--paper);
+    letter-spacing: -0.03em;
+  }
+  /* audio-level meter encoding relative priority */
+  .meter { display: flex; flex-direction: column-reverse; gap: 3px; }
+  .meter i { width: 22px; height: 5px; border-radius: 1px; background: var(--line-2); }
+  .meter i.on { background: var(--signal); }
+  .res-body { min-width: 0; }
+  .res-tag {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    display: inline-block;
+    margin-bottom: 0.5rem;
+  }
+  .res-links {
+    list-style: none;
+    padding: 0;
+    margin: 0.7rem 0 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+    word-break: break-all;
+  }
+  .res-links li::before { content: "↳ "; color: var(--fog); }
+  .res-why { color: var(--fog); font-size: 0.97rem; margin: 0; }
+  .res-why b, .why-first { color: var(--signal); }
+  .footnote {
+    margin-top: 1.4rem;
+    padding: 1rem 1.2rem;
+    border-left: 2px solid var(--line-2);
+    color: var(--fog);
+    font-size: 0.92rem;
+  }
+  .footnote b { color: var(--mist); }
+
+  /* =========================================================
+     APPROACH — principles + mapping
+     ========================================================= */
+  .principles { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; margin-bottom: 2.6rem; }
+  .principle {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.5rem 1.6rem;
+    position: relative;
+  }
+  .principle .tick {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    color: var(--signal);
+    text-transform: uppercase;
+  }
+  .principle p { margin: 0.6rem 0 0; color: var(--fog); font-size: 0.96rem; }
+  .principle p .k { color: var(--mist); }
+
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; min-width: 520px; }
+  caption {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--fog);
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  th, td { text-align: left; padding: 0.85rem 1.1rem; vertical-align: top; font-size: 0.95rem; }
+  thead th {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fog);
+    font-weight: 500;
+    background: var(--panel);
+  }
+  tbody tr { border-top: 1px solid var(--line); }
+  tbody tr:hover { background: rgba(58,223,161,0.03); }
+  td .req { color: var(--paper); font-weight: 600; }
+  td .where { font-family: var(--font-mono); font-size: 0.86rem; color: var(--signal); }
+  td.num, th.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.9rem; white-space: nowrap; text-align: right; }
+  td.num { color: var(--mist); }
+  td.num.total { color: var(--signal); }
+
+  /* =========================================================
+     TIMELINE — signal path in weeks
+     ========================================================= */
+  .rail-wrap { overflow-x: auto; padding-bottom: 0.5rem; }
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(178px, 1fr));
+    gap: 0;
+    min-width: 900px;
+    position: relative;
+  }
+  .phase { padding: 0 0.9rem; position: relative; }
+  .phase:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 9px; right: 0; left: 50%;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, var(--line-2) 0 6px, transparent 6px 11px);
+  }
+  .phase .node {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--signal);
+    background: var(--ink);
+    position: relative;
+    z-index: 2;
+    margin-bottom: 1rem;
+  }
+  .phase .node::after {
+    content: "";
+    position: absolute; inset: 4px;
+    border-radius: 50%;
+    background: var(--signal);
+  }
+  .phase .days {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: var(--cyan);
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+  .phase h4 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    color: var(--paper);
+    margin: 0 0 0.5rem;
+    line-height: 1.2;
+  }
+  .phase p { margin: 0; font-size: 0.86rem; color: var(--fog); line-height: 1.45; }
+  .phase .impact {
+    margin-top: 0.9rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    border: 1px solid var(--line-2);
+    color: var(--fog);
+  }
+  .phase .impact.none  { color: var(--signal); border-color: rgba(58,223,161,0.4); }
+  .phase .impact.ramp  { color: var(--amber); border-color: rgba(232,172,97,0.4); }
+  .phase .impact.full  { color: var(--paper); border-color: var(--line-2); background: var(--panel-2); }
+  .rail-note {
+    margin-top: 1.8rem;
+    font-size: 0.95rem;
+    color: var(--fog);
+    max-width: 62ch;
+  }
+
+  /* =========================================================
+     CHALLENGES
+     ========================================================= */
+  .risks { display: flex; flex-direction: column; gap: 0.7rem; }
+  .risk {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.4rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--amber);
+    border-radius: 10px;
+    padding: 1.1rem 1.4rem;
+  }
+  .risk .r-label, .risk .m-label {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+  .risk .r-label { color: var(--amber); }
+  .risk .m-label { color: var(--signal); }
+  .risk .r-text { color: var(--mist); font-size: 0.95rem; }
+  .risk .m-text { color: var(--fog); font-size: 0.95rem; }
+  .honest {
+    margin-top: 1.4rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-radius: 10px;
+    padding: 1.3rem 1.5rem;
+  }
+  .honest .tag {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  .honest p { margin: 0; font-size: 0.97rem; }
+
+  /* =========================================================
+     GUIDANCE + CLOSING
+     ========================================================= */
+  .steps { list-style: none; counter-reset: s; padding: 0; margin: 0 0 2.6rem; display: flex; flex-direction: column; gap: 0.9rem; }
+  .steps li {
+    counter-increment: s;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.3rem;
+    align-items: baseline;
+    padding: 1.1rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .steps li::before {
+    content: counter(s, decimal-leading-zero);
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    color: var(--signal);
+  }
+  .steps li p { margin: 0; }
+  .steps li p strong { display: block; color: var(--paper); font-family: var(--font-display); font-size: 1.05rem; margin-bottom: 0.2rem; }
+  .steps li p span { color: var(--fog); font-size: 0.96rem; }
+
+  .closing {
+    background: linear-gradient(140deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line-2);
+    border-radius: 14px;
+    padding: clamp(1.6rem, 4vw, 2.4rem);
+  }
+  .closing p {
+    font-family: var(--font-display);
+    font-size: clamp(1.15rem, 2.2vw, 1.55rem);
+    line-height: 1.3;
+    color: var(--paper);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .closing p .hl { color: var(--signal); }
+
+  footer {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 2.5rem var(--pad) 4rem;
+    border-top: 1px solid var(--line);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    color: var(--fog);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.5rem;
+    justify-content: space-between;
+  }
+
+  /* =========================================================
+     METRICS
+     ========================================================= */
+  .formula {
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-radius: 12px;
+    padding: 1.6rem 1.7rem;
+    margin-bottom: 1.6rem;
+    overflow-x: auto;
+  }
+  .formula .expr {
+    font-family: var(--font-mono);
+    font-size: clamp(1rem, 2.2vw, 1.35rem);
+    color: var(--paper);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .formula .expr b { color: var(--signal); font-weight: 600; }
+  .formula .gloss { margin: 0.9rem 0 0; color: var(--fog); font-size: 0.92rem; }
+  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.6rem; }
+  .metric {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--cyan);
+    border-radius: 10px;
+    padding: 1.25rem 1.4rem;
+  }
+  .metric.krr { border-left-color: var(--signal); }
+  .metric h3 { font-size: 1.02rem; margin-bottom: 0.4rem; }
+  .metric p { margin: 0; color: var(--fog); font-size: 0.94rem; }
+
+  /* =========================================================
+     PRODUCTION EXTENSIONS
+     ========================================================= */
+  .ext-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .ext {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.4rem 1.5rem;
+  }
+  .ext .cat {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--signal);
+    display: block;
+    margin-bottom: 0.6rem;
+  }
+  .ext h3 { font-size: 1.05rem; margin-bottom: 0.4rem; }
+  .ext p { margin: 0; color: var(--fog); font-size: 0.93rem; }
+  .ext .later {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fog);
+    border: 1px solid var(--line-2);
+    border-radius: 4px;
+    padding: 0.15rem 0.5rem;
+  }
+
+  /* =========================================================
+     SUPPORT-FLOOR BULLETS + METRIC EXAMPLE
+     ========================================================= */
+  .points { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1rem; max-width: 68ch; }
+  .points li { position: relative; padding-left: 1.5rem; color: var(--fog); font-size: 0.99rem; line-height: 1.5; }
+  .points li::before { content: "▸"; position: absolute; left: 0; top: 0; color: var(--signal); }
+  .points li strong { color: var(--paper); }
+
+  .example { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1.4rem 1.6rem; margin-bottom: 1.6rem; overflow-x: auto; }
+  .example pre { margin: 0; font-family: var(--font-mono); font-size: 0.86rem; line-height: 1.7; white-space: pre; color: var(--mist); }
+  .example .lbl { color: var(--fog); }
+  .example .key { color: var(--cyan); font-weight: 600; }
+  .example .err { color: var(--amber); }
+  .example .ok  { color: var(--signal); font-weight: 600; }
+  .example .gloss { margin: 1rem 0 0; color: var(--fog); font-size: 0.92rem; white-space: normal; }
+
+  /* =========================================================
+     LIVE-PATH STAGE CHAIN
+     ========================================================= */
+  .chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; margin: 0.5rem 0 0; }
+  .chain .stage {
+    flex: 1 1 150px;
+    min-width: 148px;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    display: flex; flex-direction: column; gap: 0.3rem;
+  }
+  .chain .stage.add { border-color: var(--cyan); }
+  .chain .st-num { font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--signal); }
+  .chain .stage.add .st-num { color: var(--cyan); }
+  .chain .st-name { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--paper); }
+  .chain .st-desc { font-size: 0.8rem; color: var(--fog); line-height: 1.4; }
+  .chain .arrow { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; color: var(--line-2); font-family: var(--font-mono); font-size: 1.1rem; }
+
+  /* =========================================================
+     DECK MODE — one section per full-screen slide
+     ========================================================= */
+  html, body { height: 100%; }
+  body { overflow: hidden; }
+  .wrap { position: fixed; inset: 0; overflow: hidden; }
+
+  .wrap > section {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    max-width: none;
+    border-top: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: safe center;
+    overflow-y: auto;
+    padding: clamp(2rem, 5vh, 4rem) clamp(1.5rem, 6vw, 5.5rem);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(42px);
+    transition: opacity 0.45s ease, transform 0.45s ease;
+    pointer-events: none;
+  }
+  .wrap > section:not(.hero) > * { width: 100%; max-width: var(--maxw); margin-left: auto; margin-right: auto; }
+  .wrap > section.hero { overflow: hidden; padding: clamp(2rem, 6vh, 5rem) var(--pad); }
+  .wrap > section.active {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    pointer-events: auto;
+    z-index: 2;
+  }
+
+  footer { display: none; }
+
+  /* deck chrome */
+  .deck-progress { position: fixed; top: 0; left: 0; width: 100%; height: 3px; background: var(--line); z-index: 20; }
+  .deck-bar { display: block; height: 100%; width: 8%; background: var(--signal); transition: width 0.45s ease; }
+  .deck-nav {
+    position: fixed; bottom: 1.1rem; right: 1.2rem;
+    display: flex; align-items: center; gap: 0.7rem;
+    z-index: 20; font-family: var(--font-mono);
+  }
+  .deck-count { font-size: 0.8rem; letter-spacing: 0.12em; color: var(--fog); font-variant-numeric: tabular-nums; }
+  .deck-count b { color: var(--paper); font-weight: 600; }
+  .nav-btn {
+    width: 2.3rem; height: 2.3rem; border-radius: 50%;
+    border: 1px solid var(--line-2); background: rgba(19,30,26,0.82);
+    color: var(--mist); font-size: 1.05rem; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px); transition: border-color 0.2s, color 0.2s;
+  }
+  .nav-btn:hover { border-color: var(--signal); color: var(--signal); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .nav-btn:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+  /* ---- responsive ---- */
+  @media (max-width: 720px) {
+    .principles { grid-template-columns: 1fr; }
+    .metric-grid, .ext-grid { grid-template-columns: 1fr; }
+    .risk { grid-template-columns: 1fr; gap: 0.8rem; }
+    .res { grid-template-columns: 1fr; }
+    .res-rank { flex-direction: row; justify-content: flex-start; gap: 1.2rem; }
+    .meter { flex-direction: row-reverse; }
+    .meter i { width: 5px; height: 18px; }
+    .hero-meta { gap: 0.5rem 1rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <canvas id="wave" aria-hidden="true"></canvas>
+    <div class="hero-inner">
+      <div class="hero-meta">
+        <span>Technical Kickoff</span>
+        <span>DataVoice&nbsp;<b>×</b>&nbsp;Deepgram</span>
+        <span>Speech-to-Text Migration</span>
+      </div>
+      <h1>DataVoice Deepgram <span class="accent">Migration Kickoff</span></h1>
+      <p class="hero-sub">
+        A reference integration that swaps the transcription engine behind your
+        support-call pipeline without your CRM or analytics ever noticing. It
+        covers the architecture, how we measure accuracy, the path to cutover,
+        what it means for your agents and your budget, and where your team starts.
+      </p>
+      <div class="agenda">
+        <span><b>01</b>&nbsp; Approach</span>
+        <span><b>02</b>&nbsp; The live path</span>
+        <span><b>03</b>&nbsp; Architecture decisions</span>
+        <span><b>04</b>&nbsp; Metrics</span>
+        <span><b>05</b>&nbsp; Timeline</span>
+        <span><b>06</b>&nbsp; Support floor</span>
+        <span><b>07</b>&nbsp; Running cost</span>
+        <span><b>08</b>&nbsp; Beyond the demo</span>
+        <span><b>09</b>&nbsp; How we guide you</span>
+        <span><b>10</b>&nbsp; Resources</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ APPROACH ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 01</span> Approach</p>
+    <h2>Two ideas hold the whole architecture up</h2>
+    <p class="lede">
+      The pipeline is a batch flow — ingest → transcribe → normalize → publish. It's value is that these two boundaries make the engine swappable.
+    </p>
+
+    <div class="principles">
+      <div class="principle">
+        <span class="tick">Principle 01</span>
+        <h3>Engine independence via <code>CallRecord</code></h3>
+        <p><span class="k">The Normalize stage is the boundary.</span> Nothing
+        Deepgram-shaped crosses it — downstream only ever sees our vendor-neutral
+        record -> minimal disruption.</p>
+      </div>
+      <div class="principle">
+        <span class="tick">Principle 02</span>
+        <h3>Destinations behind one <code>Sink</code></h3>
+        <p><span class="k">CRM and analytics implement the same interface</span>,
+        activated by config. Adding a destination or traffic-splitting the
+        migration never requires a change inside the pipeline stages.</p>
+      </div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Your requirement</th><th scope="col">Where it's met</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="req">Minimal disruption to existing workflows</span></td><td><span class="where">Normalize (CallRecord) + Publish (swappable sinks)</span></td></tr>
+          <tr><td><span class="req">Custom support for industry-specific terminology</span></td><td><span class="where">Transcribe — keyterm prompting (custom-trained model only if needed later)</span></td></tr>
+          <tr><td><span class="req">Gradual migration path with parallel systems during transition</span></td><td><span class="where">Sink / feature-flag layer + shadow-run</span></td></tr>
+          <tr><td><span class="req">Validation methodology to confirm accuracy improvements</span></td><td><span class="where">WER + Keyword Recall Rate (KRR) vs. a ground-truth eval set</span></td></tr>
+          <tr><td><span class="req">Integration with existing CRM &amp; analytics</span></td><td><span class="where">Publish (Sinks)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ LIVE PATH ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 02</span> The live path</p>
+    <h2>What actually runs in the demo</h2>
+
+    <div class="chain">
+      <div class="stage">
+        <span class="st-num">Stage 0</span>
+        <span class="st-name">Ingest</span>
+        <span class="st-desc">Call folder → job list</span>
+      </div>
+      <span class="arrow">→</span>
+      <div class="stage">
+        <span class="st-num">Stage 2</span>
+        <span class="st-name">Transcribe</span>
+        <span class="st-desc">nova-3, diarize, redact, keyterm</span>
+      </div>
+      <span class="arrow">→</span>
+      <div class="stage">
+        <span class="st-num">Stage 3</span>
+        <span class="st-name">Normalize</span>
+        <span class="st-desc">→ CallRecord (engine-independent)</span>
+      </div>
+      <span class="arrow">→</span>
+      <div class="stage">
+        <span class="st-num">Stage 5</span>
+        <span class="st-name">Publish</span>
+        <span class="st-desc">→ mock CRM + analytics, ack visible</span>
+      </div>
+      <span class="arrow">+</span>
+      <div class="stage add">
+        <span class="st-num">Stage 6</span>
+        <span class="st-name">Validate</span>
+        <span class="st-desc">shadow-run vs. baseline model → WER + recall</span>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============ ARCHITECTURE DECISIONS ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 03</span> Architecture decisions</p>
+    <h2>Architecture decisions</h2>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Decision</th><th scope="col">Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="req">Plain Node + TypeScript, no framework or build step</span></td><td>The value is the pipeline, not the UI — fewer moving parts, readable end to end.</td></tr>
+          <tr><td><span class="req">Official <code>@deepgram/sdk</code>, one thin wrapper</span></td><td>Never hand-rolled REST/WebSocket; every option in one file, pinned to the installed version.</td></tr>
+          <tr><td><span class="req">Batch, not streaming</span></td><td>The calls are already recorded — a throughput job. Streaming wouldn't fit the requirements.</td></tr>
+          <tr><td><span class="req">Engine-independent <code>CallRecord</code> at the Normalize boundary</span></td><td>Downstream never sees Deepgram's response shape, so the engine is swappable.</td></tr>
+          <tr><td><span class="req">Destinations behind a <code>Sink</code> interface + feature flag</span></td><td>Add, remove or traffic-split a destination by config — never by editing a stage.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ METRICS ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 04</span> Metrics</p>
+    <h2>How we measure accuracy and what each number means</h2>
+    <p class="lede">Two metrics, side by side: WER for overall transcription accuracy, and Keyword Recall Rate for the terms that actually matter on a support call.</p>
+
+    <div class="formula">
+      <div class="expr"><b>WER</b> = ( S + I + D ) / N</div>
+      <p class="gloss"><b>S</b>ubstitutions + <b>I</b>nsertions + <b>D</b>eletions, over <b>N</b> = words in the ground-truth transcript — all three weighted equally.</p>
+    </div>
+
+    <div class="formula">
+      <div class="expr"><b>KRR</b> = keyterms recognized / keyterms spoken</div>
+      <p class="gloss">Of the domain terms actually in the call, the fraction transcribed correctly. Keyword Error Rate (KER) is simply its inverse, 1 − KRR.</p>
+    </div>
+
+    <div class="example">
+<pre><span class="lbl">Reference</span>   cancel my <span class="key">Genesys</span> subscription this month
+<span class="lbl">Engine   </span>   cancel my <span class="err">genesis</span> subscription <span class="err">next</span> month
+
+<span class="ok">WER</span> = (2 subs + 0 ins + 0 del) / 6 words  = 33%
+<span class="ok">KRR</span> = 0 of 1 keyterms correct             =  0%</pre>
+      <p class="gloss">Same sentence, two views: WER counts two wrong words out of six (33%), but KRR shows the one word that actually mattered — the platform name — was missed entirely. That gap is why both numbers ship together.</p>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric">
+        <h3>Normalize before you compare</h3>
+        <p>Capitalization, punctuation, filler words and number formatting are normalized the same way across both engines first — otherwise you penalize style, not recognition.</p>
+      </div>
+      <div class="metric krr">
+        <h3>Report the distribution, not a mean</h3>
+        <p>Box plots (min / Q1 / median / Q3 / max) keep the 2% of bad-line-quality calls from hiding inside a flattering average.</p>
+      </div>
+    </div>
+
+    <p class="rail-note">And remember: WER against ground truth is accuracy; a WER diff without ground truth is only disagreement.</p>
+  </section>
+
+  <!-- ============ TIMELINE ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 05</span> Timeline</p>
+    <h2>Five phases to cutover</h2>
+    <p class="lede">
+      The whole rollout is gated on metrics agreed up front. Deepgram runs on
+      real traffic in shadow long before a single customer sees its output.
+    </p>
+
+    <div class="rail-wrap">
+      <div class="rail">
+        <div class="phase">
+          <div class="node"></div>
+          <span class="days">PHASE 0 · WEEK 1</span>
+          <h4>Discovery &amp; Baseline</h4>
+          <p>System access, audio format &amp; volume, build the eval set from your own recordings (min. ~1 h / ~10k words per condition), capture the current vendor's WER, agree acceptance thresholds.</p>
+          <span class="impact none">No impact</span>
+        </div>
+        <div class="phase">
+          <div class="node"></div>
+          <span class="days">PHASE 1 · WEEKS 2–3</span>
+          <h4>Integration Build</h4>
+          <p>Adapter to real CRM/analytics, tune the keyterm list, cloud-vs-self-hosted and data-residency decisions.</p>
+          <span class="impact none">No impact</span>
+        </div>
+        <div class="phase">
+          <div class="node"></div>
+          <span class="days">PHASE 2 · WEEKS 4–6</span>
+          <h4>Shadow / Parallel</h4>
+          <p>Deepgram runs on 100% of calls in shadow — output discarded. Daily WER + KRR vs. thresholds. A bad result costs nothing.</p>
+          <span class="impact none">No impact</span>
+        </div>
+        <div class="phase">
+          <div class="node"></div>
+          <span class="days">PHASE 3 · WEEKS 7–8</span>
+          <h4>Gradual Cutover</h4>
+          <p>Traffic ramps 5% → 25% → 50% → 100% via feature flag. Each step gated on the prior step's metrics. Rollback = flip the flag.</p>
+        </div>
+        <div class="phase">
+          <div class="node"></div>
+          <span class="days">PHASE 4 · WEEK 9</span>
+          <h4>Fully Operational</h4>
+          <p>Current vendor switched off. Runbook + training handed over. Validation becomes standing operations, not a project artifact.</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============ SUPPORT FLOOR ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 06</span> For the support floor</p>
+    <h2>What changes for your agents</h2>
+    <p class="lede">This is post-call batch processing, not a new tool on the desk. The disruption budget is spent on engineering, not on the people taking calls.</p>
+
+    <ul class="points">
+      <li><strong>The live call flow doesn't change.</strong> Transcription runs after the call ends — no new step or screen for agents.</li>
+      <li><strong>Same CRM records, new engine.</strong> The <code>CallRecord</code> fields are identical; redacted PII appears exactly where it does now.</li>
+      <li><strong>Invisible during the ramp.</strong> Some calls are Deepgram, some the current vendor — no one downstream can tell.</li>
+      <li><strong>A handover, not a retrain.</strong> Phase 4 is a short brief for supervisors plus a runbook, not agent retraining.</li>
+    </ul>
+  </section>
+
+  <!-- ============ COST ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 07</span> Running cost</p>
+    <h2>What it costs to run at 10,000 h/month</h2>
+    <p class="lede">This is an illustrative breakdown of what each feature contributes to the per-minute cost, so you can reason about config trade-offs at 10,000 h/month.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Line item</th><th class="num" scope="col">Rate (PAYG)</th><th class="num" scope="col">@ 10,000 h/month</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="req">Nova-3 pre-recorded (mono)</span></td><td class="num">$0.0077/min</td><td class="num">$4,620</td></tr>
+          <tr><td>+ Diarization</td><td class="num">$0.0020/min</td><td class="num">$1,200</td></tr>
+          <tr><td>+ Redaction</td><td class="num">$0.0020/min</td><td class="num">$1,200</td></tr>
+          <tr><td>+ Keyterm prompting</td><td class="num">$0.0013/min</td><td class="num">$780</td></tr>
+          <tr><td>Smart formatting</td><td class="num">included</td><td class="num">—</td></tr>
+          <tr><td><span class="req">Effective total</span></td><td class="num total">~$0.0130/min</td><td class="num total">~$7,800</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="footnote">
+      Pay-as-you-go list prices, shown for illustration — your committed rate differs. Summarization (audio intelligence) is billed per token and is <b>off by default</b> in this build. Self-hosted deployment swaps per-minute pricing for an infrastructure / licensing model — relevant at this volume and for EU data residency. Rates from
+      <a href="https://deepgram.com/pricing">deepgram.com/pricing</a>.
+    </p>
+  </section>
+
+  <!-- ============ PRODUCTION EXTENSIONS ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 08</span> Beyond the demo</p>
+    <h2>What we'd extend once it's in production</h2>
+    <p class="lede">The through-line is deliberately lean. These are the extensions we'd prioritize after cutover.</p>
+
+    <div class="ext-grid">
+      <div class="ext">
+        <span class="cat">Accuracy</span>
+        <h3>Custom vocabulary → custom model</h3>
+        <p>Keyterm prompting handles most terminology. For stubborn niche vocab, escalate to a custom-trained Deepgram model, with a growing ground-truth eval set driving the decision.</p>
+        <span class="later">Part 2</span>
+      </div>
+      <div class="ext">
+        <span class="cat">Intelligence</span>
+        <h3>Sentiment, intent, QA scorecards</h3>
+        <p>Beyond summary/topics: per-call sentiment and intent, automated QA / coaching scorecards, and aggregated topic trends across the whole batch.</p>
+        <span class="later">Post-cutover</span>
+      </div>
+      <div class="ext">
+        <span class="cat">Scale &amp; ops</span>
+        <h3>Real queue + worker pool</h3>
+        <p>Swap the in-memory loop for SQS / RabbitMQ + N parallel workers with retry/backoff; self-hosted images for volume and EU data residency.</p>
+        <span class="later">Phase 1</span>
+      </div>
+      <div class="ext">
+        <span class="cat">Persistence</span>
+        <h3>Database + warehouse</h3>
+        <p>Replace JSON-on-disk with a real datastore and analytics warehouse, schema-versioned CallRecords, and a retention policy.</p>
+        <span class="later">Phase 1</span>
+      </div>
+      <div class="ext">
+        <span class="cat">Observability</span>
+        <h3>Metrics dashboards + alerts</h3>
+        <p>Prometheus + Grafana for WER-over-time, error rate, sink latency and cost/day — with alert thresholds for regression once cutover is live.</p>
+        <span class="later">Phase 4</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GUIDANCE ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 09</span> How we guide you</p>
+    <h2>Your team owns this by the end — here's how we get you there</h2>
+
+    <ol class="steps">
+      <li><p><strong>Anchor everything on Phase 0 alignment</strong><span>Agree the eval set, the current vendor's baseline number, and the acceptance thresholds before anything ramps. This is the meeting that de-risks the rest.</span></p></li>
+      <li><p><strong>Settle the deployment model in Phase 1</strong><span>Cloud vs. self-hosted and EU data residency shape security, cost and throughput — we decide it during the integration build, before the shadow-run leans on it, not at cutover.</span></p></li>
+      <li><p><strong>Lean on the shadow-run as the safety net</strong><span>It's the direct answer to "what if it's worse than what we have today?" — run it on real traffic, discard the output, measure.</span></p></li>
+      <li><p><strong>Be explicit about what the numbers are and aren't</strong><span>Disagreement vs. verdict, distributions vs. means. Setting that expectation early is what keeps the validation conversation honest all the way to cutover.</span></p></li>
+    </ol>
+
+  </section>
+
+  <!-- ============ RESOURCES (closing) ============ -->
+  <section>
+    <p class="eyebrow"><span class="idx">§ 10</span> Resources to start from</p>
+    <h2>Deepgram resources</h2>
+    
+    <div class="resources">
+
+      <article class="res">
+        <div class="res-rank">
+          <span class="n">01</span>
+          <span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i></span>
+        </div>
+        <div class="res-body">
+          <span class="res-tag">Build</span>
+          <h3>Deepgram JavaScript SDK &amp; pre-recorded transcription</h3>
+          <ul class="res-links">
+            <li><a href="https://github.com/deepgram/deepgram-js-sdk">github.com/deepgram/deepgram-js-sdk</a></li>
+            <li><a href="https://developers.deepgram.com/reference/listen-file">developers.deepgram.com/reference/listen-file</a></li>
+            <li><a href="https://developers.deepgram.com/docs/pre-recorded-audio">developers.deepgram.com/docs/pre-recorded-audio</a></li>
+          </ul>
+         
+        </div>
+      </article>
+
+      <article class="res">
+        <div class="res-rank">
+          <span class="n">02</span>
+          <span class="meter"><i class="on"></i><i class="on"></i><i></i></span>
+        </div>
+        <div class="res-body">
+          <span class="res-tag">Validate</span>
+          <h3>Measuring quality — WER &amp; benchmarking guidance</h3>
+          <ul class="res-links">
+            <li><a href="https://deepgram.com/learn/measuring-quality-word-error-rate-explained">deepgram.com/learn/measuring-quality-word-error-rate-explained</a></li>
+            <li><a href="https://deepgram.com/learn/lies-damn-lies-and-benchmarks">deepgram.com/learn/lies-damn-lies-and-benchmarks</a></li>
+            <li><a href="https://deepgram.com/learn/what-developers-need-to-know-about-wer-ker-and-krr#code-implementation">deepgram.com/learn/what-developers-need-to-know-about-wer-ker-and-krr</a></li>
+            <li><a href="https://deepgram.com/learn/speech-recognition-accuracy-production-metrics">deepgram.com/learn/speech-recognition-accuracy-production-metrics</a></li>
+            <li><a href="https://deepgram.com/learn/transcription-quality-monitoring-production">deepgram.com/learn/transcription-quality-monitoring-production</a></li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="res">
+        <div class="res-rank">
+          <span class="n">03</span>
+          <span class="meter"><i class="on"></i><i class="on"></i><i></i></span>
+        </div>
+        <div class="res-body">
+          <span class="res-tag">Comply</span>
+          <h3>PII redaction</h3>
+          <ul class="res-links">
+            <li><a href="https://developers.deepgram.com/docs/redaction">developers.deepgram.com/docs/redaction</a></li>
+          </ul>
+          <p class="res-why">
+            Redaction is your compliance value-layer. The entity list lives here —
+            plus a real SDK gotcha: the TypeScript types accept only one
+            <code>redact</code> entity, though the API takes repeated params. Read
+            it <b>before</b> wiring redaction, not after.
+          </p>
+        </div>
+      </article>
+
+    </div>
+
+  </section>
+
+ 
+  <div class="deck-progress"><span class="deck-bar"></span></div>
+  <div class="deck-nav">
+    <button class="nav-btn prev" type="button" aria-label="Previous slide">&#8592;</button>
+    <span class="deck-count"><b id="cur">01</b> / <span id="total">12</span></span>
+    <button class="nav-btn next" type="button" aria-label="Next slide">&#8594;</button>
+  </div>
+
+</div>
+
+<script>
+  // Ambient hero waveform — layered sines scrolling left, evoking a live
+  // audio-console readout. Static single frame under reduced-motion.
+  (function () {
+    var canvas = document.getElementById("wave");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w, h;
+
+    function resize() {
+      var r = canvas.getBoundingClientRect();
+      w = r.width; h = r.height;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    var layers = [
+      { amp: 0.16, freq: 0.011, speed: 0.6,  color: "rgba(58,223,161,0.55)", lw: 2 },
+      { amp: 0.10, freq: 0.019, speed: 0.9,  color: "rgba(103,201,214,0.35)", lw: 1.5 },
+      { amp: 0.24, freq: 0.006, speed: 0.35, color: "rgba(58,223,161,0.18)", lw: 1 }
+    ];
+
+    function draw(t) {
+      ctx.clearRect(0, 0, w, h);
+      var mid = h * 0.62;
+      for (var l = 0; l < layers.length; l++) {
+        var ly = layers[l];
+        ctx.beginPath();
+        for (var x = 0; x <= w; x += 4) {
+          // envelope tapers the wave toward the edges so it reads as a burst
+          var env = Math.sin((x / w) * Math.PI);
+          var y = mid + Math.sin(x * ly.freq + t * ly.speed) * (h * ly.amp) * env
+                      + Math.sin(x * ly.freq * 0.5 - t * ly.speed * 0.7) * (h * ly.amp * 0.4) * env;
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = ly.color;
+        ctx.lineWidth = ly.lw;
+        ctx.stroke();
+      }
+    }
+
+    if (reduce) {
+      draw(0);
+    } else {
+      var start = performance.now();
+      (function loop(now) {
+        draw((now - start) / 1000);
+        requestAnimationFrame(loop);
+      })(start);
+    }
+  })();
+</script>
+
+<script>
+  // Deck navigation — each <section> is a full-screen slide.
+  (function () {
+    var slides = Array.prototype.slice.call(document.querySelectorAll('.wrap > section'));
+    var total = slides.length;
+    if (!total) return;
+    var bar = document.querySelector('.deck-bar');
+    var curEl = document.getElementById('cur');
+    var totEl = document.getElementById('total');
+    var prevBtn = document.querySelector('.nav-btn.prev');
+    var nextBtn = document.querySelector('.nav-btn.next');
+    var cur = 0;
+
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+    function render() {
+      for (var i = 0; i < total; i++) slides[i].classList.toggle('active', i === cur);
+      if (bar) bar.style.width = ((cur + 1) / total * 100) + '%';
+      if (curEl) curEl.textContent = pad(cur + 1);
+      if (prevBtn) prevBtn.disabled = cur === 0;
+      if (nextBtn) nextBtn.disabled = cur === total - 1;
+      slides[cur].scrollTop = 0;
+      var h = '#' + (cur + 1);
+      if (location.hash !== h) history.replaceState(null, '', h);
+    }
+    function go(n) { cur = Math.max(0, Math.min(total - 1, n)); render(); }
+
+    if (totEl) totEl.textContent = pad(total);
+    var startAt = parseInt((location.hash || '').replace('#', ''), 10);
+    if (startAt >= 1 && startAt <= total) cur = startAt - 1;
+    render();
+
+    if (prevBtn) prevBtn.addEventListener('click', function () { go(cur - 1); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { go(cur + 1); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(cur + 1); }
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(cur - 1); }
+      else if (e.key === 'Home') { e.preventDefault(); go(0); }
+      else if (e.key === 'End') { e.preventDefault(); go(total - 1); }
+    });
+
+    // touch swipe
+    var x0 = null;
+    document.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (x0 === null) return;
+      var dx = e.changedTouches[0].clientX - x0;
+      if (Math.abs(dx) > 55) { go(dx < 0 ? cur + 1 : cur - 1); }
+      x0 = null;
+    }, { passive: true });
+  })();
+</script>

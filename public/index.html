@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Deepgram Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --bg: #0f1115;
+        --surface: #171a21;
+        --surface-2: #1e222b;
+        --ink: #e7e9ee;
+        --ink-dim: #8b93a3;
+        --accent: #5b9dff;
+        --good: #4fae74;
+        --good-soft: rgba(79, 174, 116, 0.14);
+        --bad: #e0684f;
+        --bad-soft: rgba(224, 104, 79, 0.14);
+        --rule: rgba(231, 233, 238, 0.09);
+        --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+      }
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+      }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      .sub { color: var(--ink-dim); font-size: 14px; margin: 0 0 28px; }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+      button#run-btn {
+        background: var(--accent);
+        color: #0b1220;
+        border: none;
+        border-radius: 6px;
+        padding: 10px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button#run-btn:disabled { opacity: 0.55; cursor: default; }
+      #status { font-size: 13.5px; color: var(--ink-dim); font-family: var(--mono); }
+
+      #cost {
+        display: none;
+        background: var(--surface);
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 24px;
+        font-size: 13.5px;
+        color: var(--ink-dim);
+      }
+      #cost strong { color: var(--ink); }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+      th {
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--ink-dim);
+        font-weight: 500;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--rule);
+      }
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+      tr.call-row { cursor: pointer; }
+      tr.call-row:hover { background: var(--surface); }
+
+      .pill {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      .pill.ok { background: var(--good-soft); color: var(--good); }
+      .pill.err { background: var(--bad-soft); color: var(--bad); }
+
+      tr.detail-row td {
+        background: var(--surface-2);
+        padding: 16px 20px 22px;
+      }
+      tr.detail-row { display: none; }
+      tr.detail-row.open { display: table-row; }
+
+      .detail-block + .detail-block { margin-top: 14px; }
+      .detail-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--ink-dim);
+        margin-bottom: 5px;
+      }
+      .detail-text { line-height: 1.55; white-space: pre-wrap; }
+      .topics span {
+        display: inline-block;
+        background: var(--surface);
+        border: 1px solid var(--rule);
+        border-radius: 10px;
+        padding: 2px 9px;
+        font-size: 12px;
+        margin: 0 6px 6px 0;
+      }
+
+      #empty { color: var(--ink-dim); font-size: 13.5px; padding: 20px 0; }
+
+      th.hint { cursor: help; border-bottom: 1px dotted var(--ink-dim); }
+      .wer-baseline { color: var(--ink-dim); font-size: 11.5px; }
+
+      #validation-note {
+        display: none;
+        font-size: 12.5px;
+        color: var(--ink-dim);
+        margin: 10px 0 0;
+        line-height: 1.5;
+      }
+
+      .speaker-line + .speaker-line { margin-top: 8px; }
+      .speaker-tag {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--accent);
+        margin-right: 8px;
+      }
+      .meta-line {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-dim);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Batch pipeline run overview</h1>
+      
+
+      <div class="toolbar">
+        <button id="run-btn">Run pipeline</button>
+        <span id="status">idle</span>
+      </div>
+
+      <div id="cost"></div>
+
+      <table id="results-table" style="display: none;">
+        <thead>
+          <tr>
+            <th>Call</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th class="hint" title="Difference from a weaker baseline Deepgram model, not a verified accuracy score — see the note below the table.">WER vs. baseline</th>
+            <th>Domain recall</th>
+            <th>Summary</th>
+          </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+
+      <p id="validation-note"></p>
+
+      <p id="empty">No run yet — click "Run pipeline" to process <code>samples/</code>.</p>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

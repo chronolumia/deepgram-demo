@@ -1,0 +1,20 @@
+[
+  {
+    "file": "call-001.wav",
+    "callId": "call-001",
+    "agentId": "agent-07",
+    "startedAt": "2026-06-29T14:32:00Z"
+  },
+  {
+    "file": "call-002.wav",
+    "callId": "call-002",
+    "agentId": "agent-12",
+    "startedAt": "2026-06-30T09:15:00Z"
+  },
+  {
+    "file": "call-003.wav",
+    "callId": "call-003",
+    "agentId": "agent-07",
+    "startedAt": "2026-07-01T11:47:00Z"
+  }
+]
