@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches package.json "engines" and CLAUDE.md's fixed runtime.
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # typecheck -> lint -> format -> tests, each failing the build on its own.
+      - run: npm run verify
+
+      # The build is verified separately because its config differs from typecheck's:
+      # tsconfig.build.json excludes tests, and this is what catches dist/ regressions
+      # like the emit path silently moving out from under `npm start`.
+      - run: npm run build
+
+      - name: Assert the start entrypoint exists
+        run: test -f dist/server.js

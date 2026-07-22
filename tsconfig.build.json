@@ -1,0 +1,8 @@
+{
+  // Build-only config. Identical to tsconfig.json except that colocated tests are kept out
+  // of dist/ — they live next to the code they cover, but shipping them would put test
+  // fixtures into the deployed output. `npm run typecheck` uses the base config, so the
+  // tests are still type-checked.
+  "extends": "./tsconfig.json",
+  "exclude": ["**/*.test.ts"]
+}
