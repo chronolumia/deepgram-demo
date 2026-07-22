@@ -7,7 +7,13 @@ const SAMPLES_DIR = path.join(__dirname, "..", "..", "samples");
 
 export interface CallJob {
   callId: string;
+  // Absolute path, used only to open the file locally. Never published.
   audioPath: string;
+  // The stable, machine-independent identifier that goes into CallRecord.source.audioUri.
+  // Kept separate from audioPath because the record is POSTed to the CRM, and an absolute
+  // path would leak the processing machine's directory layout into a downstream system
+  // while being meaningless there. In production this becomes the object-store URI.
+  audioUri: string;
   agentId?: string;
   startedAt: string;
 }
@@ -26,6 +32,7 @@ export async function discoverJobs(): Promise<CallJob[]> {
   return entries.map((entry) => ({
     callId: entry.callId,
     audioPath: path.join(SAMPLES_DIR, entry.file),
+    audioUri: `samples/${entry.file}`,
     agentId: entry.agentId,
     startedAt: entry.startedAt,
   }));

@@ -1,11 +1,13 @@
-import { createReadStream } from "node:fs";
-import { BASELINE_MODEL, transcribeFile } from "../deepgram/client.js";
+import { BASELINE_MODEL, transcribeLocalFile } from "../deepgram/client.js";
 import { loadKeyterms } from "./transcribe.js";
 import type { CallJob } from "./ingest.js";
 import type { ValidationResult } from "../types/callRecord.js";
 
-// normalizes text to compare two transcripts 
-// TODO: extend later to remove filler words etc
+// Normalizes both transcripts the same way before diffing them, so the two engines are not
+// penalized for stylistic differences that have nothing to do with recognition accuracy.
+// Filler words ("um", "uh") are deliberately KEPT: dropping them is a judgement call that
+// changes the metric, and VALIDATION.md section 1 commits to deciding that jointly with the
+// customer rather than baking a preference in here.
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
@@ -54,22 +56,42 @@ export function computeWer(hypothesisText: string, referenceText: string): numbe
   return editDistance(hyp, ref) / ref.length;
 }
 
-// Proportion of actually occurring terms that Deepgram correctly recognized is counted.
-// Todo: add regex for terms ('NICE' would match 'nice' but shouldnt) -> word boundary
+// Matches a keyterm only as a whole word. Plain substring matching inflated this metric —
+// "SLA" hit inside "slash", "SSO" inside "ssology" — and since the result is shown to the
+// customer as a percentage, a false positive overstates recognition quality.
+//
+// Case matters for the all-caps terms specifically: "NICE" is a competitor's name, "nice"
+// is an ordinary English word, and counting the latter as a recognized brand mention is
+// the exact failure the original TODO called out. So all-caps terms are matched
+// case-sensitively; everything else (product names, "webhook") case-insensitively.
+// Terms are regex-escaped because the list is user-editable (src/config/terms.json).
+function mentionsTerm(text: string, term: string): boolean {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const caseSensitive = term === term.toUpperCase() && /[A-Z]/.test(term);
+  // \b anchors need a word character on the relevant side; terms that start or end with
+  // punctuation get a plain containment check instead of a broken anchor.
+  if (!/^\w/.test(term) || !/\w$/.test(term)) {
+    return caseSensitive ? text.includes(term) : text.toLowerCase().includes(term.toLowerCase());
+  }
+  return new RegExp(`\\b${escaped}\\b`, caseSensitive ? "" : "i").test(text);
+}
+
+// Proportion of the keyterms actually spoken in this call that Deepgram recognized.
 export function computeDomainTermRecall(
   deepgramText: string,
   baselineText: string,
   keyterms: string[]
 ): number {
-  const deepgramLower = deepgramText.toLowerCase();
-  const baselineLower = baselineText.toLowerCase();
-
   const mentionedEither = keyterms.filter(
-    (term) => deepgramLower.includes(term.toLowerCase()) || baselineLower.includes(term.toLowerCase())
+    (term) => mentionsTerm(deepgramText, term) || mentionsTerm(baselineText, term)
   );
-  if (mentionedEither.length === 0) return 1; // no keyterm evidence in this call — vacuously satisfied
+  // No keyterm evidence at all. Returning 1 renders as a flattering "100%" in the dashboard
+  // while measuring nothing — which is exactly what happened while the pipeline was pointed
+  // at placeholder audio containing none of DataVoice's vocabulary. Kept as the neutral
+  // value, but callers should treat it as "not applicable", not as a passing score.
+  if (mentionedEither.length === 0) return 1;
 
-  const recognizedByDeepgram = mentionedEither.filter((term) => deepgramLower.includes(term.toLowerCase()));
+  const recognizedByDeepgram = mentionedEither.filter((term) => mentionsTerm(deepgramText, term));
   return recognizedByDeepgram.length / mentionedEither.length;
 }
 
@@ -78,7 +100,7 @@ export async function runShadowValidation(
   deepgramRedactedText: string
 ): Promise<ValidationResult | undefined> {
   try {
-    const response = await transcribeFile(createReadStream(job.audioPath), { model: BASELINE_MODEL });
+    const response = await transcribeLocalFile(job.audioPath, { model: BASELINE_MODEL });
     if (!("results" in response)) return undefined;
 
     const baselineText = response.results.channels[0]?.alternatives?.[0]?.transcript ?? "";

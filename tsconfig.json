@@ -5,7 +5,10 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
     "outDir": "dist",
-    "rootDir": ".",
+    // rootDir is "src" (not ".") so tsc emits dist/server.js — the path package.json's
+    // "main"/"start" point at. With rootDir "." the output nested to dist/src/server.js
+    // and `npm run build && npm start` failed to find it.
+    "rootDir": "src",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
@@ -15,5 +18,9 @@
     "declaration": false,
     "sourceMap": true
   },
-  "include": ["src", "scripts"]
+  // scripts/ is excluded from the build: hello.ts is a throwaway SDK smoke test run
+  // through tsx, and including it would force rootDir back to "." (see above).
+  // Tests are deliberately included here so `npm run typecheck` covers them too;
+  // tsconfig.build.json excludes them from the emitted dist/.
+  "include": ["src"]
 }

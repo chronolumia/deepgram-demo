@@ -1,4 +1,4 @@
-import { MODEL, type TranscribeResponse } from "../deepgram/client.js";
+import { MODEL, estimateCostUsd, type TranscribeResponse } from "../deepgram/client.js";
 import type { CallJob } from "./ingest.js";
 import type { CallIntelligence, CallRecord, SpeakerRole, TranscriptSegment } from "../types/callRecord.js";
 
@@ -12,7 +12,19 @@ type Channel = NonNullable<SuccessResponse["results"]["channels"]>[number];
 type Alternative = NonNullable<Channel["alternatives"]>[number];
 type Paragraph = NonNullable<NonNullable<Alternative["paragraphs"]>["paragraphs"]>[number];
 
-// speaker index to CallRecord role (agent/customer/unknown)
+// Maps Deepgram's speaker index to a CallRecord role using a deliberate heuristic:
+// whoever speaks first is the agent. That holds for calls the agent opens with a greeting
+// and breaks whenever the customer speaks first — and when it breaks, every segment in the
+// call is labelled backwards, and that inverted label is what reaches the CRM.
+//
+// It stays a heuristic because diarization returns anonymous speaker indices, not identities.
+// The real fix is channel-level separation (agent and customer on separate audio channels,
+// which most call recorders can emit) — then the role comes from the channel, not from who
+// talked first. Documented rather than silently assumed, because a wrong speaker label is
+// harder to notice downstream than a missing one.
+//
+// Speakers beyond the first two are "unknown" — a supervisor joining a call is real, but
+// guessing which of three voices is "the customer" would be inventing data.
 function roleForSpeaker(speaker: number | undefined, speakingOrder: number[]): SpeakerRole {
   if (speaker === undefined) return "unknown";
   const position = speakingOrder.indexOf(speaker);
@@ -49,9 +61,12 @@ function extractIntelligence(response: TranscribeResponse): CallIntelligence {
 
   const summary = results.summary?.short;
 
-  const topicSegments = (results.topics as unknown as { segments?: TopicsSegment[] } | undefined)?.segments ?? [];
+  const topicSegments =
+    (results.topics as unknown as { segments?: TopicsSegment[] } | undefined)?.segments ?? [];
 
-  // TODO: make more performant for prod
+  // Linear scan to de-duplicate rather than a Set, to preserve the order Deepgram returned
+  // topics in — the dashboard shows them as a row, and stable order reads better than
+  // insertion-hash order. A call has a handful of topics; this is not a hot path.
   const topics: string[] = [];
   for (const segment of topicSegments) {
     for (const t of segment.topics ?? []) {
@@ -75,7 +90,7 @@ export function normalize(job: CallJob, response: TranscribeResponse): CallRecor
     return {
       callId: job.callId,
       source: {
-        audioUri: job.audioPath,
+        audioUri: job.audioUri,
         startedAt: job.startedAt,
         durationSec: 0,
         agentId: job.agentId,
@@ -94,7 +109,7 @@ export function normalize(job: CallJob, response: TranscribeResponse): CallRecor
   return {
     callId: job.callId,
     source: {
-      audioUri: job.audioPath,
+      audioUri: job.audioUri,
       startedAt: job.startedAt,
       durationSec: response.metadata.duration,
       agentId: job.agentId,
@@ -103,12 +118,18 @@ export function normalize(job: CallJob, response: TranscribeResponse): CallRecor
       segments: toSegments(paragraphs),
       redactedText: alternative?.transcript ?? "",
     },
-    // Stage 4: empty, since INTELLIGENCE_ENABLED is not set
+    // Stage 4 merges in here rather than in its own module: summary/topics ride along on
+    // the same prerecorded response, so splitting them out would mean re-parsing it.
+    // Empty unless INTELLIGENCE_ENABLED requested them (see transcribe.ts).
     intelligence: extractIntelligence(response),
     processing: {
       engine: "deepgram",
       model: MODEL,
       processedAt,
+      // Recorded per call rather than derived in the dashboard, so the analytics store can
+      // answer "cost per call over time" — the question that actually matters during a
+      // migration — instead of only the current batch being able to.
+      costUsd: estimateCostUsd(response.metadata.duration),
     },
     schemaVersion: 1,
   };
