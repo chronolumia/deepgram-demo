@@ -39,6 +39,15 @@ This file is the binding contract for how the repo is built. Follow it over habi
 - **One place per concern.** All Deepgram options live in the Deepgram wrapper. All destination logic lives behind the Sink interface. The `CallRecord` type is the single source of truth for the data contract.
 - **TypeScript strict**, no `any` on public boundaries. Prefer small pure functions per stage.
 - **No secrets in code.** Everything via env (`.env`, with `.env.example` committed).
+- **Comments are written in English.** The repo is a customer-facing reference integration;
+  mixed-language comments read as unfinished. The one exception is the temporary learning
+  layer below.
+- **Temporary learning comments** (`PROVENANCE`, `LERN-KONSTRUKT`, `ZWECK`) may be added
+  freely while building, in any language, and are **stripped before the demo**. They are
+  scaffolding, not documentation — never treat them as the explanation of a design decision.
+- **Async errors must be reachable.** An `'error'` EVENT (streams, emitters) is not caught by
+  `try/catch` and escapes as an uncaughtException. Convert it to a rejection at the boundary,
+  or per-call error isolation is a fiction. This has already cost one crashed batch.
 
 ---
 
@@ -54,75 +63,39 @@ These two ideas are the reason the architecture exists. Do not erode them.
 
 ## 5. The data contract — `CallRecord`
 
-`src/types/callRecord.ts` is the single source of truth. Keep it engine-independent.
+**`src/types/callRecord.ts` is the single source of truth. Read it there — it is not
+reproduced here, because a second copy drifts.**
 
-```typescript
-export type SpeakerRole = "agent" | "customer" | "unknown";
+What must stay true of it, regardless of how it evolves:
 
-export interface TranscriptSegment {
-  speaker: SpeakerRole;
-  startSec: number;
-  endSec: number;
-  text: string; // already PII-redacted by Stage 2
-}
-
-export interface CallIntelligence {
-  summary?: string;
-  topics?: string[];
-  // Extension point: intent, QA scorecard, sentiment (all Part-2 / post-call).
-}
-
-export interface ValidationResult {
-  baselineLabel: string;   // what Deepgram was compared against
-  wer: number;             // word error rate, Deepgram vs. baseline
-  domainTermRecall: number; // recall on the keyterm list (often > WER in value)
-}
-
-export interface CallRecord {
-  callId: string;
-  source: {
-    audioUri: string;
-    startedAt: string;     // ISO-8601
-    durationSec: number;
-    agentId?: string;
-  };
-  transcript: {
-    segments: TranscriptSegment[];
-    redactedText: string;  // full flat transcript, PII-redacted
-  };
-  intelligence: CallIntelligence;
-  validation?: ValidationResult; // present only when shadow-run ran
-  processing: {
-    engine: "deepgram";    // explicit, so swappability is visible in the data
-    model: string;         // e.g. "nova-3"
-    processedAt: string;   // ISO-8601
-    costUsd?: number;
-  };
-  error?: string;          // set if this call failed; other fields best-effort
-  schemaVersion: 1;
-}
-```
-
----
+- **Engine-independent.** No field may be named after, or shaped by, a Deepgram response.
+  `processing.engine` names the engine as *data* precisely so swapping it is visible without
+  changing the shape.
+- **`schemaVersion` is bumped, never quietly reinterpreted.** Downstream consumers key off it.
+- **`transcript` is already PII-redacted** when the record exists. Redaction happens in
+  Stage 2, so no downstream component ever holds raw PII.
+- **`error` is set instead of throwing.** A failed call is still a valid `CallRecord`, with
+  the remaining fields best-effort. This is what keeps one bad call from ending a batch.
+- **`validation` is optional** and present only when a shadow run actually happened.
 
 ## 6. The integration boundary — `Sink`
 
-`src/sinks/sink.ts`. Destinations are registered and activated by the `DESTINATIONS` env var.
+**`src/sinks/sink.ts` is the source of truth for the interface.** Two members: `name` and
+`publish(record)`.
 
-```typescript
-import type { CallRecord } from "../types/callRecord";
+- `CrmWebhookSink` → POSTs the `CallRecord` to the mock CRM, with timeout, bounded retry on
+  5xx/429, and a stable `Idempotency-Key` so a retry cannot duplicate a call.
+- `AnalyticsSink` → upserts into a JSONL store by `callId`, so re-running a batch corrects
+  records rather than duplicating them.
+- `SplitSink` (`src/sinks/splitSink.ts`) wraps any sink and forwards a deterministic share of
+  calls — this is the gradual-migration mechanism, and it is **built**.
 
-export interface Sink {
-  readonly name: string;               // e.g. "crm", "analytics"
-  publish(record: CallRecord): Promise<void>;
-}
-```
+`DESTINATIONS` selects and configures them: `DESTINATIONS=crm@25,analytics` sends a quarter
+of calls to the CRM and everything to analytics. Routing is a deterministic hash of `callId`,
+so a ramp is additive and a re-run routes identically.
 
-- `CrmWebhookSink` → POST the `CallRecord` to the mock CRM endpoint; surface the ack.
-- `AnalyticsSink` → append to a JSON/CSV store.
-- A registry maps names → instances; `DESTINATIONS=crm,analytics` selects which run. A traffic-split parameter (share of calls routed to Deepgram output) enables the gradual-migration story.
-
----
+**The rule that matters:** adding, removing, or traffic-splitting a destination must never
+require an edit inside a pipeline stage. If it does, the abstraction has been eroded.
 
 ## 7. Deepgram usage rules
 
@@ -155,18 +128,22 @@ export interface Sink {
 │   │   ├── validate.ts        # Stage 6: shadow-run + WER/term-recall
 │   │   └── run.ts             # orchestrates stages per call + over a batch
 │   ├── sinks/
-│   │   ├── sink.ts            # Sink interface (Section 6)
-│   │   ├── crmWebhookSink.ts
-│   │   └── analyticsSink.ts
+│   │   ├── sink.ts            # Sink interface + DESTINATIONS registry (Section 6)
+│   │   ├── crmWebhookSink.ts  # timeout + retry + idempotency key
+│   │   ├── analyticsSink.ts   # JSONL store, upsert by callId
+│   │   └── splitSink.ts       # traffic-split wrapper (gradual migration)
 │   └── config/
 │       └── terms.json         # keyterm list
 ├── public/
 │   ├── index.html             # static dashboard, no build step
 │   └── app.js
-└── samples/                    # sample call audio for the demo
+└── samples/                    # sample call audio + meta.json manifest
 ```
 
 Stages map 1:1 to `src/pipeline/*`. If a file doesn't correspond to a stage or a boundary, question whether it belongs.
+
+Tests live beside the code they cover as `*.test.ts` (`node --test`, no framework).
+`tsconfig.build.json` keeps them out of `dist/`.
 
 ---
 
@@ -175,12 +152,12 @@ Stages map 1:1 to `src/pipeline/*`. If a file doesn't correspond to a stage or a
 | Stage | Module | Responsibility |
 |---|---|---|
 | 0 Source | `ingest.ts` | discover sample audio + metadata |
-| 1 Ingest/Queue | `ingest.ts` | one job per call, processed sequentially |
+| 1 Ingest/Queue | `ingest.ts` | one job per call; sequential by default, `CONCURRENCY` raises the pool |
 | 2 Transcribe | `transcribe.ts` + `deepgram/client.ts` | Deepgram STT + redact + diarize + keyterm |
 | 3 Normalize | `normalize.ts` | response → `CallRecord` (engine-independent boundary) |
 | 4 Intelligence | `normalize.ts` | summary/topics → `CallRecord.intelligence` (merged in) |
-| 5 Publish | `sinks/*` | `CallRecord` → CRM + analytics |
-| 6 Validate | `validate.ts` | Deepgram vs. baseline → `CallRecord.validation` |
+| 5 Publish | `sinks/*` | `CallRecord` → CRM + analytics, optionally traffic-split |
+| 6 Validate | `validate.ts` | Deepgram vs. baseline → `CallRecord.validation` (opt-in) |
 | 7 Dashboard | `server.ts` + `public/*` | run overview, drill-down, WER delta, cost projection |
 
 ---
@@ -192,17 +169,34 @@ Stages map 1:1 to `src/pipeline/*`. If a file doesn't correspond to a stage or a
 ```
 DEEPGRAM_API_KEY=
 PORT=3000
-DESTINATIONS=crm,analytics
+DESTINATIONS=crm,analytics        # "crm@25,analytics" traffic-splits the CRM
 CRM_WEBHOOK_URL=http://localhost:3000/mock-crm
-INTELLIGENCE_ENABLED=false
-# LLM_API_KEY=   # optional, only if structured summary uses an LLM
+INTELLIGENCE_ENABLED=false        # Stage 4 — costs tokens
+VALIDATION_ENABLED=false          # Stage 6 — costs a SECOND transcription per call
+# CONCURRENCY=1                   # calls processed in parallel
+# ANALYTICS_PATH=                 # override the analytics store location (tests)
+# LLM_API_KEY=                    # optional, only if structured summary uses an LLM
 ```
 
 ---
 
 ## 11. Definition of Done (MVP)
 
-- `npm run dev` starts the server; opening the dashboard and triggering a run processes the `samples/` folder.
-- Each call: transcribed via the SDK (nova-3, redact, diarize, keyterm), normalized to `CallRecord`, published to the mock CRM, visible in the dashboard with redacted PII.
-- A broken sample does not stop the batch.
-- No Deepgram-specific shape appears downstream of `normalize.ts`.
+Each item names how it is proven. A DoD nobody can run is a wish, not a gate — the
+`npm start` path was broken for weeks precisely because nothing checked it.
+
+| Done means | Proven by |
+|---|---|
+| Typecheck, lint, format and tests are green | `npm run verify` (also runs in CI) |
+| The build produces a runnable server | `npm run build && npm start`, then `/health` |
+| Triggering a run processes every call in `samples/meta.json` | `npm run dev` → "Run pipeline", or `POST /api/run` |
+| Each call is transcribed (nova-3, redact, diarize, keyterm) and normalized to `CallRecord` | Dashboard rows with speaker-labelled, `[REDACTED]`-token transcripts |
+| Records reach the mock CRM and the analytics store | `[crm] published …` in the log; `data/analytics.jsonl` |
+| **A broken sample does not stop the batch** | `src/pipeline/transcribe.test.ts`, plus a bogus `meta.json` entry surviving a real run |
+| **No Deepgram-specific shape appears downstream of `normalize.ts`** | `src/pipeline/normalize.test.ts` ("no Deepgram-shaped key survives the boundary") |
+| Domain-term recall measures something rather than defaulting | Keyterms from `terms.json` actually present in the sample audio — not the vacuous `1.0` |
+
+**Honesty gate.** Numbers shown to the customer must be reproducible and caveated where they
+are weaker than they look: WER against a baseline tier is *disagreement*, not accuracy;
+`costUsd` excludes the shadow-run pass; a recall of 100% is only meaningful if keyterms were
+actually spoken. Never let a metric read stronger than its method supports.

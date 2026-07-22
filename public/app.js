@@ -2,11 +2,12 @@
 // anstoßen, Ergebnis als Tabelle mit aufklappbaren Details zeigen, plus eine
 // Kostenprojektion. Kein Framework, kein Build-Step (CLAUDE.md Section 2).
 
-// Aus deepgram.com/pricing verifiziert (Stand der letzten Recherche in dieser
-// Session) — dieselben Sätze wie im Stakeholder-Deck: Nova-3 Monolingual
-// (0,0048) + Diarize (0,0020) + Redact (0,0020) + Keyterm (0,0013) $/Min.
-const RATE_PER_MINUTE_USD = 0.0048 + 0.002 + 0.002 + 0.0013;
-const PROJECTED_MONTHLY_HOURS = 10000; // DataVoice's stated volume, CLAUDE.md Abschnitt 1
+// ZWECK: die Hochrechnung braucht einen Minutenpreis, aber der Preis pro Call kommt
+// inzwischen fertig aus dem Backend (`record.processing.costUsd`, gesetzt in
+// normalize.ts aus der einzigen Rate-Tabelle in deepgram/client.ts). Diese Konstante
+// wird deshalb NUR noch aus den echten Zahlen des Laufs zurückgerechnet — es gibt hier
+// bewusst keine zweite, hartkodierte Preisliste mehr, die vom Backend abweichen könnte.
+const PROJECTED_MONTHLY_HOURS = 10000; // DataVoice's stated volume, CLAUDE.md section 1
 
 const runBtn = document.getElementById("run-btn");
 const statusEl = document.getElementById("status");
@@ -48,23 +49,47 @@ function formatDuration(sec) {
 // Stil-Entscheidung, keine Produktions-Einschränkung.
 function renderCostProjection(records) {
   let totalSec = 0;
+  let thisRunCost = 0;
   for (const r of records) {
     totalSec += r.source?.durationSec ?? 0;
+    thisRunCost += r.processing?.costUsd ?? 0;
   }
-  const totalMinutes = totalSec / 60;
-  const thisRunCost = totalMinutes * RATE_PER_MINUTE_USD;
-  const monthlyMinutes = PROJECTED_MONTHLY_HOURS * 60;
-  const monthlyCost = monthlyMinutes * RATE_PER_MINUTE_USD;
 
-  costEl.replaceChildren(
+  // Der effektive Minutenpreis wird aus dem Lauf selbst abgeleitet statt hier nochmal
+  // hingeschrieben — so kann die Hochrechnung gar nicht erst von dem abweichen, was
+  // das Backend tatsächlich abgerechnet hat. Bei einem leeren Lauf gibt es nichts
+  // hochzurechnen.
+  const totalMinutes = totalSec / 60;
+  const effectiveRate = totalMinutes > 0 ? thisRunCost / totalMinutes : 0;
+  const monthlyCost = PROJECTED_MONTHLY_HOURS * 60 * effectiveRate;
+
+  const lines = [
     el("div", null, `This run: ${totalSec.toFixed(1)}s of audio processed → ≈ $${thisRunCost.toFixed(4)}.`),
     el(
       "div",
       { style: "margin-top: 4px;" },
       `At DataVoice's stated volume (${PROJECTED_MONTHLY_HOURS.toLocaleString()} h/month), the same configuration ` +
-        `(nova-3 + diarize + redact + keyterm) projects to ≈ $${monthlyCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}/month, pay-as-you-go.`
-    )
-  );
+        `(nova-3 + diarize + redact + keyterm, $${effectiveRate.toFixed(4)}/min) projects to ` +
+        `≈ $${monthlyCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}/month, pay-as-you-go.`
+    ),
+  ];
+
+  // ZWECK: derselbe Ehrlichkeits-Reflex wie beim WER-Hinweis. Der Shadow-Run ist ein
+  // zweiter kompletter Transkriptionslauf und damit echtes Geld, taucht aber in
+  // `costUsd` nicht auf (Deepgram veröffentlicht den Preis der Legacy-Stufe nicht mehr).
+  // Lieber die Lücke benennen als eine Zahl erfinden oder sie verschweigen.
+  if (records.some((r) => r.validation)) {
+    lines.push(
+      el(
+        "div",
+        { style: "margin-top: 8px;" },
+        "Excludes the shadow-run pass: validation re-transcribes every call against a baseline " +
+          "model, roughly doubling spend while it is enabled. It is a migration-period cost, not steady state."
+      )
+    );
+  }
+
+  costEl.replaceChildren(...lines);
   costEl.style.display = "block";
 }
 
@@ -224,7 +249,13 @@ async function runPipeline() {
   statusEl.textContent = "running…";
   try {
     const res = await fetch("/api/run", { method: "POST" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      // Der Server schickt bei 409/500 ein { error }-Feld mit dem Grund mit —
+      // das ist brauchbarer als "HTTP 500". Fällt auf den Status zurück, falls
+      // die Antwort doch kein JSON ist.
+      const detail = await res.json().catch(() => null);
+      throw new Error(detail?.error ?? `HTTP ${res.status}`);
+    }
     const data = await res.json();
     renderResults(data.records);
     const errorCount = data.records.filter((r) => r.error).length;

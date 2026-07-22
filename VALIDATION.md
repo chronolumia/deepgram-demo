@@ -1,12 +1,18 @@
 # Validation Methodology
 
 How we'd confirm — not just claim — that Deepgram is more accurate than the
-incumbent vendor, before and during the migration. This document exists
-because CLAUDE.md's Section 1 non-goal list explicitly keeps the shadow-run
-validation code out of the 5-hour MVP build (EPIC 4, not built), but the
-*methodology* itself is cheap to write down and directly answers one of the
+incumbent vendor, before and during the migration. This answers one of the
 five core requirements from the brief ("Validation methodology to confirm
 accuracy improvements").
+
+**What is built vs. what is method.** A slim shadow run *is* implemented —
+`src/pipeline/validate.ts` re-transcribes each call against a weaker Deepgram
+tier and fills `CallRecord.validation` with a WER and a domain-term recall
+figure. It is opt-in behind `VALIDATION_ENABLED`, because it costs a second
+full transcription of every call. Everything else below — ground-truth eval
+sets, distribution reporting, acceptance thresholds — is methodology for the
+real migration, not code in this repo. Section 3 is the important one: it
+says plainly what the number `validate.ts` produces can and cannot support.
 
 This is grounded in Deepgram's own published guidance
 ([Measuring Quality: WER Explained](https://deepgram.com/learn/measuring-quality-word-error-rate-explained),
@@ -108,20 +114,26 @@ specifically on the disagreements the baseline diff surfaces.
 
 ---
 
-## 4. What our current sample audio gets wrong for this purpose
+## 4. What our sample audio can and can't support
 
-Worth stating plainly, since it directly affects the S5.2 before/after
-keyterm demo we already scoped out (see README's "Sample audio" section):
 Deepgram's own benchmarking guidance says to test with **your own real-world
 data**, not vendor-supplied sample clips, and explicitly warns that public
-benchmark audio may already be in a vendor's training data. Our 3 placeholder
-clips (Deepgram's own hosted examples) are exactly the kind of audio that
-guidance advises against for a genuine accuracy comparison — clean, public,
-non-representative of real support calls (no background noise, no
-cross-talk, no accent spread). They're fine for proving pipeline mechanics
-(diarization, redaction, keyterm wiring all visibly work), but a real
-validation exercise would need the kind of audio `samples/call-scripts.md`
-was written for: authentic, messy, own-recorded calls.
+benchmark audio may already be in a vendor's training data.
+
+The pipeline originally ran against three of Deepgram's own hosted example
+clips — exactly the audio that guidance advises against, and worse, audio
+containing none of DataVoice's vocabulary, which made domain-term recall
+report a meaningless 100% on every call. `samples/meta.json` now points at
+the four scripted support calls recorded for this demo (see
+`samples/call-scripts.md` and README's "Sample audio" section), so keyterm
+recall, diarization and redaction are measured against speech that actually
+contains the terms in `src/config/terms.json`.
+
+That makes the *demo* honest, not the *validation* complete. These recordings
+are still scripted and clean — no background noise, no cross-talk, no accent
+spread. They prove the mechanics work end to end. A real accuracy verdict
+needs the eval set described in Sections 2 and 5: authentic, messy,
+production-representative calls, human-labeled.
 
 ---
 
@@ -137,8 +149,8 @@ eval set samples across those conditions rather than picking 1 hour at random.
 ## 6. What happens when this goes to production
 
 Validation isn't a one-time gate before cutover — it's a continuous check
-across the whole 60-day rollout (see `DataVoice-Deepgram_Referenzintegration.md`
-Section 8 for the full phase plan):
+across the whole 60-day rollout (see `docs/kickoff-technical-brief.html` §05
+"Five phases to cutover" for the customer-facing version of this plan):
 
 | Phase | Validation activity |
 |---|---|
