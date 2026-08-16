@@ -1,12 +1,15 @@
 # Validation Methodology
 
+Shadow validation is **opt-in**. The default pipeline path is transcribe →
+normalize → publish. Set `SHADOW_VALIDATION=true` to run a second Deepgram
+pass (model `base`) and attach `CallRecord.validation` (WER + domain-term
+recall). Failures of that second pass are logged and skipped; they never fail
+the call.
+
 How we'd confirm — not just claim — that Deepgram is more accurate than the
-incumbent vendor, before and during the migration. This document exists
-because CLAUDE.md's Section 1 non-goal list explicitly keeps the shadow-run
-validation code out of the 5-hour MVP build (EPIC 4, not built), but the
-*methodology* itself is cheap to write down and directly answers one of the
-five core requirements from the brief ("Validation methodology to confirm
-accuracy improvements").
+incumbent vendor, before and during the migration. This document answers one
+of the five core requirements from the brief ("Validation methodology to
+confirm accuracy improvements").
 
 This is grounded in Deepgram's own published guidance
 ([Measuring Quality: WER Explained](https://deepgram.com/learn/measuring-quality-word-error-rate-explained),
@@ -137,8 +140,7 @@ eval set samples across those conditions rather than picking 1 hour at random.
 ## 6. What happens when this goes to production
 
 Validation isn't a one-time gate before cutover — it's a continuous check
-across the whole 60-day rollout (see `DataVoice-Deepgram_Referenzintegration.md`
-Section 8 for the full phase plan):
+across the whole 60-day rollout:
 
 | Phase | Validation activity |
 |---|---|

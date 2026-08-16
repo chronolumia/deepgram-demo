@@ -8,9 +8,9 @@ This file is the binding contract for how the repo is built. Follow it over habi
 
 ## 1. What we are building (and what we are not)
 
-**We build:** a batch pipeline that takes recorded support calls, transcribes + enriches them with Deepgram, normalizes them into an engine-independent record, and publishes them to (mock) CRM + analytics sinks — plus a slim shadow-run validation view and a static dashboard.
+**We build:** a batch pipeline that takes recorded support calls, transcribes + enriches them with Deepgram, normalizes them into an engine-independent record, and publishes them to (mock) CRM + analytics sinks — plus an optional shadow-run validation view and a static dashboard.
 
-**The demo through-line that MUST work end to end:** Stage 0 → 2 → 3 → 5 (a call is transcribed, normalized, lands in the mock CRM). Everything else makes it convincing or presentable, not functional.
+**The through-line that MUST work end to end:** ingest → transcribe → normalize → publish (a call is transcribed, normalized, lands in the mock CRM). Everything else makes it convincing or presentable, not functional.
 
 ### Non-goals (do NOT build these)
 - **No Next.js. No frontend bundler/build step.** Plain Node backend + a static dashboard page.
@@ -20,6 +20,7 @@ This file is the binding contract for how the repo is built. Follow it over habi
 - **No custom Deepgram model training.** Terminology is handled via keyterm prompting; custom models are a documented Part-2 escalation only.
 - **No real CRM.** A mock webhook endpoint stands in for it.
 - Do not add edge-case handling that isn't on the through-line. "Water through pipes over coverage for every edge case."
+- **No worker pool, traffic-split, or queue library** until ingest is no longer a local `samples/` folder.
 
 ---
 
@@ -27,18 +28,19 @@ This file is the binding contract for how the repo is built. Follow it over habi
 
 - **Runtime:** Node 20, **TypeScript** (strict).
 - **Backend:** Express. Serves the static dashboard and a small API that triggers pipeline runs.
-- **Deepgram:** the official **`@deepgram/sdk`** — used for STT (prerecorded), audio intelligence (Read), and, if the optional real-time slice is built, live. **Never hand-roll REST/WebSocket calls against Deepgram.**
-- **Frontend:** one static HTML page + vanilla JS (React via CDN only if component structure is genuinely needed). No build step.
-- **Optional LLM** (structured call summary): a single provider call behind one function; keep it swappable and off the critical path.
+- **Deepgram:** the official **`@deepgram/sdk`** — used for STT (prerecorded) and audio intelligence via Listen options (`summarize` / `topics`). **Never hand-roll REST/WebSocket calls against Deepgram.**
+- **Frontend:** one static HTML page + vanilla JS. No build step.
+- **Tests:** Node's built-in test runner (`node:test`) via `tsx --test`. No extra test framework.
 
 ---
 
 ## 3. Code conventions
 
-- **Comment design decisions, not obvious code.** A comment explains *why* a non-obvious choice was made (a Deepgram option, the normalization boundary, a trade-off) — never restates what the line already says. No comment on trivial lines.
-- **One place per concern.** All Deepgram options live in the Deepgram wrapper. All destination logic lives behind the Sink interface. The `CallRecord` type is the single source of truth for the data contract.
-- **TypeScript strict**, no `any` on public boundaries. Prefer small pure functions per stage.
+- **Comment design decisions, not obvious code.** A comment explains *why* a non-obvious choice was made (a Deepgram option, the normalization boundary, a trade-off) — never restates what the line already says.
+- **One place per concern.** All Deepgram options live in `src/deepgram.ts`. Destinations are selected in `src/pipeline.ts`. The `CallRecord` type in `src/record.ts` is the single source of truth for the data contract.
+- **TypeScript strict**, no `any` on public boundaries. Prefer small functions over classes and interfaces-with-one-implementation.
 - **No secrets in code.** Everything via env (`.env`, with `.env.example` committed).
+- **Paths** resolve from `process.cwd()` so `tsx` and compiled `node dist/server.js` (run from the repo root) both work.
 
 ---
 
@@ -46,15 +48,15 @@ This file is the binding contract for how the repo is built. Follow it over habi
 
 These two ideas are the reason the architecture exists. Do not erode them.
 
-1. **Engine independence via the `CallRecord` contract.** Downstream systems (CRM, analytics) never see Deepgram's response shape — only our normalized `CallRecord`. This is what makes the vendor swappable without touching downstream, i.e. the technical answer to "minimal disruption." Stage 3 is the boundary; nothing Deepgram-specific may leak past it.
+1. **Engine independence via the `CallRecord` contract.** Downstream systems (CRM, analytics) never see Deepgram's response shape — only our normalized `CallRecord`. This is what makes the vendor swappable without touching downstream. `normalize()` in `src/record.ts` is the boundary; nothing Deepgram-specific may leak past it.
 
-2. **Destinations behind one Sink abstraction.** Every output target implements the same `Sink` interface and is activated by config. Adding, removing, or traffic-splitting a destination must never require changes inside the pipeline stages.
+2. **Destinations selected by config.** `DESTINATIONS=crm,analytics` chooses publishers. Adding or removing a destination must never require changes inside transcribe/normalize.
 
 ---
 
 ## 5. The data contract — `CallRecord`
 
-`src/types/callRecord.ts` is the single source of truth. Keep it engine-independent.
+`src/record.ts` is the single source of truth. Keep it engine-independent.
 
 ```typescript
 export type SpeakerRole = "agent" | "customer" | "unknown";
@@ -63,74 +65,65 @@ export interface TranscriptSegment {
   speaker: SpeakerRole;
   startSec: number;
   endSec: number;
-  text: string; // already PII-redacted by Stage 2
+  text: string; // already PII-redacted by Deepgram
 }
 
 export interface CallIntelligence {
   summary?: string;
   topics?: string[];
-  // Extension point: intent, QA scorecard, sentiment (all Part-2 / post-call).
 }
 
 export interface ValidationResult {
-  baselineLabel: string;   // what Deepgram was compared against
-  wer: number;             // word error rate, Deepgram vs. baseline
-  domainTermRecall: number; // recall on the keyterm list (often > WER in value)
+  baselineLabel: string;
+  wer: number; // disagreement vs baseline, not verified accuracy
+  domainTermRecall: number;
 }
 
 export interface CallRecord {
   callId: string;
   source: {
     audioUri: string;
-    startedAt: string;     // ISO-8601
+    startedAt: string; // ISO-8601
     durationSec: number;
     agentId?: string;
   };
   transcript: {
     segments: TranscriptSegment[];
-    redactedText: string;  // full flat transcript, PII-redacted
+    redactedText: string;
   };
   intelligence: CallIntelligence;
-  validation?: ValidationResult; // present only when shadow-run ran
+  validation?: ValidationResult; // present only when SHADOW_VALIDATION ran
   processing: {
-    engine: "deepgram";    // explicit, so swappability is visible in the data
-    model: string;         // e.g. "nova-3"
-    processedAt: string;   // ISO-8601
-    costUsd?: number;
+    engine: "deepgram";
+    model: string;
+    processedAt: string;
   };
-  error?: string;          // set if this call failed; other fields best-effort
+  error?: string;
   schemaVersion: 1;
 }
 ```
 
 ---
 
-## 6. The integration boundary — `Sink`
+## 6. Destinations
 
-`src/sinks/sink.ts`. Destinations are registered and activated by the `DESTINATIONS` env var.
+Publishers live in `src/pipeline.ts` and are activated by `DESTINATIONS`.
 
-```typescript
-import type { CallRecord } from "../types/callRecord";
+- `crm` → POST the `CallRecord` to `CRM_WEBHOOK_URL` (timeout via `AbortSignal`).
+- `analytics` → append one JSON line to `data/analytics.jsonl`.
 
-export interface Sink {
-  readonly name: string;               // e.g. "crm", "analytics"
-  publish(record: CallRecord): Promise<void>;
-}
-```
-
-- `CrmWebhookSink` → POST the `CallRecord` to the mock CRM endpoint; surface the ack.
-- `AnalyticsSink` → append to a JSON/CSV store.
-- A registry maps names → instances; `DESTINATIONS=crm,analytics` selects which run. A traffic-split parameter (share of calls routed to Deepgram output) enables the gradual-migration story.
+Unknown names fail the batch (config error), not an individual call.
 
 ---
 
 ## 7. Deepgram usage rules
 
-- All Deepgram access goes through **one thin wrapper**: `src/deepgram/client.ts`. It is the only file that imports `@deepgram/sdk` and the only place transcription options are set.
-- **Batch/prerecorded** options (Stage 2): `model=nova-3`, `diarize`, `smart_format`, `redact`, `keyterm`, `language=en`.
-- **Audio intelligence** (Stage 4): Deepgram Read for `summarize` / `topics`. Note: sentiment/intent are pre-recorded only — do not promise them live.
-- **Exact SDK method names/namespaces are authoritative in the current `@deepgram/sdk` README** (`listen` / `read` / `speak` have shifted across versions). Match the installed version; do not guess from memory.
-- Keep the keyterm list in `src/config/terms.json` so terminology is editable without code changes.
+- All Deepgram access goes through **`src/deepgram.ts`**. It is the only file that imports `@deepgram/sdk` and the only place transcription options are set.
+- **Batch/prerecorded** options: `model=nova-3`, `diarize`, `smart_format`, `paragraphs`, `redact`, `keyterm`, `language=en`.
+- **Audio intelligence** (optional): Listen flags `summarize=v2` / `topics` when `INTELLIGENCE_ENABLED=true`. Do not add a separate Read-API wrapper for this.
+- Exact SDK method names/namespaces are authoritative in the installed `@deepgram/sdk` (`listen.v1.media.transcribeFile`).
+- Keyterm list: `src/terms.json`.
+- Calls use a timeout (`DEEPGRAM_TIMEOUT_MS`, default 120s) and `maxRetries: 0`.
 
 ---
 
@@ -143,45 +136,36 @@ export interface Sink {
 ├── tsconfig.json
 ├── .env.example
 ├── src/
-│   ├── server.ts              # Express: serves dashboard + API, triggers runs
-│   ├── types/
-│   │   └── callRecord.ts      # THE contract (Section 5)
-│   ├── deepgram/
-│   │   └── client.ts          # only file that touches @deepgram/sdk
-│   ├── pipeline/
-│   │   ├── ingest.ts          # Stage 0–1: read sample folder → jobs/queue
-│   │   ├── transcribe.ts      # Stage 2: Deepgram prerecorded
-│   │   ├── normalize.ts       # Stage 3 + 4: response → CallRecord (the boundary) + summary/topics
-│   │   ├── validate.ts        # Stage 6: shadow-run + WER/term-recall
-│   │   └── run.ts             # orchestrates stages per call + over a batch
-│   ├── sinks/
-│   │   ├── sink.ts            # Sink interface (Section 6)
-│   │   ├── crmWebhookSink.ts
-│   │   └── analyticsSink.ts
-│   └── config/
-│       └── terms.json         # keyterm list
+│   ├── server.ts      # Express: dashboard + API + mock CRM
+│   ├── pipeline.ts    # ingest → transcribe → publish
+│   ├── deepgram.ts    # only file that touches @deepgram/sdk
+│   ├── record.ts      # CallRecord + normalize() + failedRecord()
+│   ├── config.ts      # env + terms.json load
+│   ├── validate.ts    # pure WER / domain-term recall (optional)
+│   └── terms.json
 ├── public/
-│   ├── index.html             # static dashboard, no build step
+│   ├── index.html
 │   └── app.js
-└── samples/                    # sample call audio for the demo
+└── samples/
 ```
 
-Stages map 1:1 to `src/pipeline/*`. If a file doesn't correspond to a stage or a boundary, question whether it belongs.
+If a file doesn't correspond to HTTP, the pipeline, Deepgram, the data contract, or config, question whether it belongs.
 
 ---
 
-## 9. Pipeline stages (reference)
+## 9. Pipeline flow
 
-| Stage | Module | Responsibility |
+| Step | Module | Responsibility |
 |---|---|---|
-| 0 Source | `ingest.ts` | discover sample audio + metadata |
-| 1 Ingest/Queue | `ingest.ts` | one job per call, processed sequentially |
-| 2 Transcribe | `transcribe.ts` + `deepgram/client.ts` | Deepgram STT + redact + diarize + keyterm |
-| 3 Normalize | `normalize.ts` | response → `CallRecord` (engine-independent boundary) |
-| 4 Intelligence | `normalize.ts` | summary/topics → `CallRecord.intelligence` (merged in) |
-| 5 Publish | `sinks/*` | `CallRecord` → CRM + analytics |
-| 6 Validate | `validate.ts` | Deepgram vs. baseline → `CallRecord.validation` |
-| 7 Dashboard | `server.ts` + `public/*` | run overview, drill-down, WER delta, cost projection |
+| Source | `pipeline.ts` `discoverJobs` | read `samples/meta.json` |
+| Transcribe | `deepgram.ts` | Deepgram STT + redact + diarize + keyterm |
+| Normalize | `record.ts` | response → `CallRecord` |
+| Intelligence | `record.ts` | summary/topics merged when the Listen flags were set |
+| Publish | `pipeline.ts` | `CallRecord` → CRM + analytics |
+| Validate | `validate.ts` via `pipeline.ts` | only when `SHADOW_VALIDATION=true` |
+| Dashboard | `server.ts` + `public/*` | run overview + drill-down |
+
+Default path is transcribe → normalize → publish. A broken sample does not stop the batch.
 
 ---
 
@@ -195,14 +179,16 @@ PORT=3000
 DESTINATIONS=crm,analytics
 CRM_WEBHOOK_URL=http://localhost:3000/mock-crm
 INTELLIGENCE_ENABLED=false
-# LLM_API_KEY=   # optional, only if structured summary uses an LLM
+SHADOW_VALIDATION=false
 ```
+
+The process refuses to boot without `DEEPGRAM_API_KEY`. `POST /api/run` returns 409 if a run is already in progress.
 
 ---
 
 ## 11. Definition of Done (MVP)
 
 - `npm run dev` starts the server; opening the dashboard and triggering a run processes the `samples/` folder.
-- Each call: transcribed via the SDK (nova-3, redact, diarize, keyterm), normalized to `CallRecord`, published to the mock CRM, visible in the dashboard with redacted PII.
+- Each call: transcribed via the SDK (nova-3, redact, diarize, paragraphs, keyterm), normalized to `CallRecord`, published to the mock CRM, visible in the dashboard with redacted PII.
 - A broken sample does not stop the batch.
-- No Deepgram-specific shape appears downstream of `normalize.ts`.
+- No Deepgram-specific shape appears downstream of `normalize()`.

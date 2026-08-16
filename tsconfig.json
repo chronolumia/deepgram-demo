@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
     "outDir": "dist",
-    "rootDir": ".",
+    "rootDir": "src",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
@@ -15,5 +15,6 @@
     "declaration": false,
     "sourceMap": true
   },
-  "include": ["src", "scripts"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

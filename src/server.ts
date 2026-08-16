@@ -1,20 +1,22 @@
 import "dotenv/config";
 import express from "express";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { runBatch } from "./pipeline/run.js";
-import type { CallRecord } from "./types/callRecord.js";
+import { loadConfig } from "./config.js";
+import { runBatch } from "./pipeline.js";
+import type { CallRecord } from "./record.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const cfg = loadConfig();
+
+if (!cfg.deepgramApiKey) {
+  console.error("DEEPGRAM_API_KEY is not set");
+  process.exit(1);
+}
+
 const app = express();
-
-// holds the result of the last batch run in the server process
 let lastRun: CallRecord[] | null = null;
-const port = process.env.PORT ?? 3000;
+let running = false;
 
-app.use(express.json({ limit: "2mb" })); // Body-Parsing für /mock-crm & /api/run
-app.use(express.static(path.join(__dirname, "..", "public")));
-
+app.use(express.json({ limit: "2mb" }));
+app.use(express.static(cfg.publicDir));
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
@@ -25,18 +27,40 @@ app.post("/mock-crm", (req, res) => {
   res.json({ received: true, callId: req.body?.callId, receivedAt: new Date().toISOString() });
 });
 
-
 app.post("/api/run", async (_req, res) => {
-  const records = await runBatch();
-  lastRun = records;
-  res.json({ count: records.length, records });
+  if (running) {
+    res.status(409).json({ error: "a pipeline run is already in progress" });
+    return;
+  }
+
+  running = true;
+  try {
+    const records = await runBatch();
+    lastRun = records;
+    res.json({ count: records.length, records });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[api/run]", message);
+    res.status(500).json({ error: message });
+  } finally {
+    running = false;
+  }
 });
 
-// returns the last run, without triggering the pipeline again. The dashboard calls this when loading, to avoid showing "no runs yet" after a reload, even though there is already a result.
 app.get("/api/runs/latest", (_req, res) => {
   res.json({ count: lastRun?.length ?? 0, records: lastRun ?? [] });
 });
 
-app.listen(port, () => {
-  console.log(`DataVoice Deepgram demo listening on http://localhost:${port}`);
+const server = app.listen(cfg.port, () => {
+  console.log(`DataVoice Deepgram demo listening on http://localhost:${cfg.port}`);
 });
+
+function shutdown() {
+  if (running) {
+    console.log("waiting for in-flight pipeline run before shutdown");
+  }
+  server.close(() => process.exit(0));
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
